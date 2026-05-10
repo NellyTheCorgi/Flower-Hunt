@@ -1,0 +1,8 @@
+{
+  "name": "Flower Hunt",
+  "description": "En app for å identifisere og samle norske blomster ved bruk av AI.",
+  "requestFramePermissions": [
+    "camera",
+    "geolocation"
+  ]
+}

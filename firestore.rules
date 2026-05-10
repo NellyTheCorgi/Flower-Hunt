@@ -1,0 +1,85 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 0. Global Safety Net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isSignedIn() {
+      return request.auth != null && request.auth.token.email_verified == true;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+       return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    // Validation Blueprints
+    function isValidUser(data) {
+      return data.uid == request.auth.uid &&
+             data.displayName is string && data.displayName.size() <= 128 &&
+             (data.email == null || (data.email is string && data.email.size() <= 128)) &&
+             (data.photoURL == null || (data.photoURL is string && data.photoURL.size() <= 2048)) &&
+             data.stats is map &&
+             data.stats.totalFound is number &&
+             data.stats.uniqueSpecies is number &&
+             data.stats.level is number &&
+             data.stats.xp is number &&
+             (!('unlocked_trophies' in data) || (data.unlocked_trophies is list && data.unlocked_trophies.size() <= 30)) &&
+             (!('createdAt' in data) || data.createdAt is timestamp) &&
+             (!('updatedAt' in data) || data.updatedAt is timestamp);
+    }
+
+    function isValidCollection(data) {
+      return data.userId == request.auth.uid &&
+             data.speciesId is string && data.speciesId.size() <= 256 &&
+             data.speciesName is string && data.speciesName.size() <= 512 &&
+             data.imageUrl is string && data.imageUrl.size() <= 10485760 && // rely on firestore 1MB doc limit instead of string count
+             data.collectedAt is timestamp &&
+             (!('location' in data) || (data.location is map && data.location.lat is number && data.location.lng is number));
+    }
+
+    // --- Collections ---
+
+    match /users/{userId} {
+      allow get: if isSignedIn();
+      allow list: if false;
+      allow create: if isOwner(userId) && isValidUser(incoming());
+      allow update: if isOwner(userId) && 
+                    // Immutable fields check - only if present
+                    (!('uid' in incoming()) || incoming().uid == existing().uid) &&
+                    (!('createdAt' in incoming()) || incoming().createdAt == existing().createdAt) &&
+                    (
+                      // Allow any valid profile or stats update
+                      incoming().diff(existing()).affectedKeys().hasOnly(['stats', 'updatedAt', 'displayName', 'photoURL', 'unlocked_trophies']) ||
+                      isValidUser(incoming())
+                    );
+    }
+
+    match /collections/{collectionId} {
+      allow get: if isSignedIn() && existing().userId == request.auth.uid;
+      allow list: if isSignedIn() && resource.data.userId == request.auth.uid;
+      allow create: if isSignedIn() && 
+                    isValidId(collectionId) &&
+                    incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && 
+                    isValidId(collectionId) &&
+                    existing().userId == request.auth.uid &&
+                    incoming().userId == existing().userId;
+      allow delete: if isSignedIn() && existing().userId == request.auth.uid;
+    }
+  }
+}

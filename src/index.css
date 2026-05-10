@@ -1,0 +1,46 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  body {
+    @apply antialiased;
+  }
+}
+
+body {
+  background-color: #f8faf9;
+  color: #1a1a1a;
+}
+
+/* Hide scrollbar universally */
+* {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+::-webkit-scrollbar {
+  display: none;
+}
+
+@layer utilities {
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .no-scrollbar {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  .markdown-body {
+    @apply text-primary/80 text-sm;
+  }
+  
+  .markdown-body p {
+    @apply mb-4 leading-relaxed;
+  }
+  
+  .markdown-body strong {
+    @apply font-bold text-primary uppercase text-xs tracking-wider block mt-4 mb-1;
+  }
+}

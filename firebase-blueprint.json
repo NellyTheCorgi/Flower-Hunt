@@ -1,0 +1,57 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "stats": {
+          "type": "object",
+          "properties": {
+            "totalFound": { "type": "integer" },
+            "uniqueSpecies": { "type": "integer" },
+            "level": { "type": "integer" },
+            "xp": { "type": "integer" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email"]
+    },
+    "CollectedFlower": {
+      "title": "Collected Flower",
+      "description": "A flower instance collected by a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "speciesId": { "type": "string" },
+        "speciesName": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "location": {
+          "type": "object",
+          "properties": {
+            "latitude": { "type": "number" },
+            "longitude": { "type": "number" }
+          }
+        },
+        "collectedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "speciesId", "collectedAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "User",
+      "description": "User profile documents"
+    },
+    "collections/{collectionId}": {
+      "schema": "CollectedFlower",
+      "description": "Individual flower collections"
+    }
+  }
+}
