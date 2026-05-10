@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenerativeAI as GoogleGenAI, SchemaType as Type } from "@google/generative-ai";
 import { NORWEGIAN_FLOWERS } from "../data/flowers";
 
 let ai: GoogleGenAI | null = null;
@@ -39,12 +39,12 @@ Tone: Saklig, lærerik og profesjonell.`;
 
 function getAI() {
   if (!ai) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
     if (!apiKey) {
-      console.error("GEMINI_API_KEY is missing");
+      console.error("VITE_GEMINI_API_KEY is missing");
       return null;
     }
-    ai = new GoogleGenAI({ apiKey });
+    ai = new GoogleGenAI(apiKey);
   }
   return ai;
 }
@@ -60,16 +60,19 @@ export async function generateFlowerText(speciesName: string): Promise<string | 
     const prompt = `Generer informasjonen for planten "${speciesName}".
 Du MÅ følge systeminstruksen nøyaktig og fylle ut alle felt.`;
 
-    const response = await currentAi.models.generateContent({
-      model: "gemini-3-flash-preview",
+    const model = currentAi.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      systemInstruction: SYSTEM_INSTRUCTION,
+    });
+
+    const result = await model.generateContent({
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+      generationConfig: {
         temperature: 0.1,
       }
     });
 
-    return response.text || null;
+    return result.response.text() || null;
   } catch (error) {
     console.error("Feil ved generering av plantetekst:", error);
     return null;
@@ -94,9 +97,14 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
     Hvis planten ikke er på listen, identifiser den likevel så nøyaktig som mulig.
     Du MÅ i tillegg fylle ut feltet 'formattedText' nøyaktig slik det er beskrevet i systeminstruksjonen.`;
 
-    const response = await currentAi.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: {
+    const model = currentAi.getGenerativeModel({
+      model: "gemini-1.5-flash",
+      systemInstruction: SYSTEM_INSTRUCTION,
+    });
+
+    const result = await model.generateContent({
+      contents: [{
+        role: 'user',
         parts: [
           {
             inlineData: {
@@ -106,9 +114,8 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
           },
           { text: prompt }
         ]
-      },
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
+      }],
+      generationConfig: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
@@ -119,7 +126,7 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
             family: { type: Type.STRING, description: "Botanisk familie (på norsk)" },
             description: { type: Type.STRING, description: "Kort botanisk beskrivelse (ca 2 setninger)" },
             habitat: { type: Type.STRING, description: "Hvor planten typisk vokser" },
-            rarity: { type: Type.STRING, enum: ['common', 'rare', 'ghost'], description: "Sjeldenhet" },
+            rarity: { type: Type.STRING, enum: ['common', 'rare', 'ghost'], description: "Sjeldenhet" } as any,
             isMatch: { type: Type.BOOLEAN, description: "Er dette en direkte match med listen?" },
             id: { type: Type.STRING, description: "ID fra listen hvis match" },
             error: { type: Type.STRING, description: "Feilmelding hvis ingen plante ble funnet" },
@@ -129,7 +136,7 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
       }
     });
 
-    const text = response.text;
+    const text = result.response.text();
     if (!text) {
       console.error("Empty response from Gemini");
       return null;
