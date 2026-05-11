@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, ChangeEvent } from 'react';
 import {
   collection,
   doc,
@@ -17,11 +17,18 @@ import { fetchFlowerInfo } from '../services/wikipediaService';
 import { FlowerSpecies, IdentifiedFlower, CollectedFlower, UserProfile } from '../types';
 import { NORWEGIAN_FLOWERS } from '../data/flowers';
 import { calculateLevel, getEarnedTrophies } from '../lib/levels';
+import { WikipediaInfo } from '../services/wikipediaService';
+import { FLOWER_IMAGES } from '../constants';
 
 export function useFlowerScanner() {
   const [isScanning, setIsScanning] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isFound, setIsFound] = useState(false);
+  const [identifiedSpecies, setIdentifiedSpecies] = useState<FlowerSpecies | null>(null);
+  const [wikiInfo, setWikiInfo] = useState<WikipediaInfo | null>(null);
+  const [previewImage, setPreviewImage] = useState<string>(FLOWER_IMAGES.sunflowerView);
+  const [leveledUpTo, setLeveledUpTo] = useState<number | null>(null);
 
   const scanImage = async (compressedBase64: string): Promise<{
     species: FlowerSpecies;
@@ -189,12 +196,122 @@ export function useFlowerScanner() {
     }
   };
 
+  const processImage = async (dataUrl: string) => {
+    setIsFound(false);
+    setIdentifiedSpecies(null);
+    setWikiInfo(null);
+    setPreviewImage(dataUrl);
+
+    const result = await scanImage(dataUrl);
+
+    if (result) {
+      setIdentifiedSpecies(result.species);
+      setWikiInfo(result.wikiInfo);
+      setIsFound(true);
+    } else if (error) {
+       alert(error);
+    }
+  };
+
+  const handleCapture = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+
+    reader.onerror = () => {
+      alert('Klarte ikke å lese bildefilen.');
+    };
+
+    reader.onload = async (event) => {
+      const dataUrl = event.target?.result as string;
+
+      const img = new Image();
+      img.onerror = () => {
+        alert('Klarte ikke å behandle bildet.');
+      };
+
+      img.onload = async () => {
+        try {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1024;
+          const MAX_HEIGHT = 1024;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) throw new Error('Could not get canvas context');
+
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
+          await processImage(compressedBase64);
+        } catch (err) {
+          console.error('Identification error:', err);
+          alert('Det oppsto en feil under bildeanalysen. Vennligst prøv igjen.');
+        }
+      };
+      img.src = dataUrl;
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleCollect = async (
+    userId: string,
+    refreshProfile: () => Promise<void>,
+    onNavigate: (screen: any) => void
+  ) => {
+    if (!userId || !identifiedSpecies) return;
+
+    const newLevelAchieved = await collectFlower(
+      userId,
+      identifiedSpecies,
+      previewImage,
+      wikiInfo,
+      refreshProfile
+    );
+
+    if (newLevelAchieved) {
+      setLeveledUpTo(newLevelAchieved);
+    } else if (newLevelAchieved !== null || !error) { // if null returned and no error, means success but no level up
+      onNavigate('collection');
+    }
+  };
+
+
   return {
     isScanning,
     saving,
     error,
     setError,
     scanImage,
-    collectFlower
+    collectFlower,
+    isFound,
+    setIsFound,
+    identifiedSpecies,
+    setIdentifiedSpecies,
+    wikiInfo,
+    setWikiInfo,
+    previewImage,
+    setPreviewImage,
+    leveledUpTo,
+    setLeveledUpTo,
+    processImage,
+    handleCapture,
+    handleCollect
   };
 }
