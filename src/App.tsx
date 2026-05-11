@@ -23,7 +23,7 @@ function AppContent() {
     );
   }
 
-  if (!user) {
+  if (!user || !user.emailVerified) {
     return <Login />;
   }
 
