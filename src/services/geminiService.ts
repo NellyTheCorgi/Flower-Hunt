@@ -39,7 +39,7 @@ Tone: Saklig, lærerik og profesjonell.`;
 
 function getAI() {
   if (!ai) {
-    const apiKey = (import.meta as any).env?.VITE_GEMINI_API_KEY;
+    const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
     if (!apiKey) {
       console.error("VITE_GEMINI_API_KEY is missing");
       return null;
@@ -152,6 +152,6 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
     }
   } catch (error) {
     console.error("Gemini Error:", error);
-    return null;
+    throw error;
   }
 }

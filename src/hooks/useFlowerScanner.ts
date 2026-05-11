@@ -268,7 +268,7 @@ export function useFlowerScanner() {
           await processImage(compressedBase64);
         } catch (err) {
           console.error('Identification error:', err);
-          alert('Det oppsto en feil under bildeanalysen. Vennligst prøv igjen.');
+          alert('API ERROR: ' + (err instanceof Error ? err.message : String(err)));
         }
       };
       img.src = dataUrl;
