@@ -152,6 +152,6 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
     }
   } catch (error) {
     console.error("Gemini Error:", error);
-    return null;
+    throw error;
   }
 }
