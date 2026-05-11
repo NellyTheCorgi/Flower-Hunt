@@ -5,49 +5,36 @@ import { Icons } from '../constants';
 import { useFirebase } from '../context/FirebaseContext';
 import { collection, query, where, getDocs, Timestamp } from 'firebase/firestore';
 import { db } from '../lib/firebase';
-
 interface MapProps {
   onBack: () => void;
   onNavigate: (screen: any) => void;
 }
-
 const API_KEY =
-  process.env.GOOGLE_MAPS_PLATFORM_KEY ||
-  process.env.GOOGLE_API_KEY ||
-  process.env.GOOGLE_API ||
-  (import.meta as any).env?.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
-  (import.meta as any).env?.VITE_GOOGLE_API_KEY ||
-  (globalThis as any).GOOGLE_MAPS_PLATFORM_KEY ||
-  (globalThis as any).GOOGLE_API_KEY ||
+  import.meta.env.VITE_GOOGLE_MAPS_PLATFORM_KEY ||
+  import.meta.env.VITE_GOOGLE_API_KEY ||
   '';
-
 const hasValidKey = Boolean(API_KEY) && API_KEY !== 'YOUR_API_KEY';
-
 function MapContent({ onBack }: { onBack: () => void }) {
   const map = useMap();
   const placesLib = useMapsLibrary('places');
   const [searchQuery, setSearchQuery] = useState('');
   const [places, setPlaces] = useState<google.maps.places.Place[]>([]);
   const [selectedPlace, setSelectedPlace] = useState<google.maps.places.Place | null>(null);
-  
   const { user } = useFirebase();
   const [flowers, setFlowers] = useState<any[]>([]);
   const [selectedFlower, setSelectedFlower] = useState<any | null>(null);
   const [markers, setMarkers] = useState<{[key: string]: google.maps.marker.AdvancedMarkerElement}>({});
   const clusterer = useRef<MarkerClusterer | null>(null);
-
   useEffect(() => {
     if (!map) return;
     if (!clusterer.current) {
       clusterer.current = new MarkerClusterer({ map });
     }
   }, [map]);
-
   useEffect(() => {
     clusterer.current?.clearMarkers();
     clusterer.current?.addMarkers(Object.values(markers));
   }, [markers]);
-
   useEffect(() => {
     async function loadFlowers() {
       if (!user) return;
@@ -75,11 +62,9 @@ function MapContent({ onBack }: { onBack: () => void }) {
     }
     loadFlowers();
   }, [user, map]);
-
   const setMarkerRef = (marker: google.maps.marker.AdvancedMarkerElement | null, id: string) => {
     if (marker && markers[id]) return;
     if (!marker && !markers[id]) return;
-    
     setMarkers(prev => {
       if (marker) {
         return { ...prev, [id]: marker };
@@ -90,11 +75,9 @@ function MapContent({ onBack }: { onBack: () => void }) {
       }
     });
   };
-
   const handleSearch = async (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!placesLib || !searchQuery) return;
-
     try {
       const { places: results } = await placesLib.Place.searchByText({
         textQuery: searchQuery,
@@ -102,7 +85,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
         locationBias: map?.getCenter(),
         maxResultCount: 8,
       });
-
       setPlaces(results);
       if (results.length > 0 && map && results[0].location) {
         map.panTo(results[0].location);
@@ -112,7 +94,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
       console.error('Search failed:', error);
     }
   };
-
   return (
     <>
       <GoogleMap
@@ -143,7 +124,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
             </div>
           </AdvancedMarker>
         ))}
-
         {places.map((place) => (
           <AdvancedMarker
             key={`place-${place.id}`}
@@ -162,7 +142,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
             />
           </AdvancedMarker>
         ))}
-
         {selectedFlower && selectedFlower.location && (
           <InfoWindow
             headerDisabled
@@ -182,7 +161,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
             </div>
           </InfoWindow>
         )}
-
         {selectedPlace && selectedPlace.location && (
           <InfoWindow
             headerDisabled
@@ -203,7 +181,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
           </InfoWindow>
         )}
       </GoogleMap>
-
       <header className="absolute top-0 left-0 right-0 z-10 p-6 space-y-4">
         <div className="flex items-center gap-3">
           <button
@@ -212,7 +189,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
           >
             <Icons.ChevronRight className="w-6 h-6 rotate-180" />
           </button>
-          
           <form onSubmit={handleSearch} className="flex-grow flex items-center bg-white rounded-2xl shadow-xl px-4 pointer-events-auto">
             <Icons.Search className="w-5 h-5 text-muted-foreground mr-2 shrink-0" />
             <input 
@@ -233,7 +209,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
             )}
           </form>
         </div>
-
         <div className="flex gap-2 items-center">
           <button 
             onClick={() => {
@@ -256,7 +231,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
           >
             <Icons.Compass className="w-6 h-6" />
           </button>
-          
           <div className="flex-grow flex gap-2 overflow-x-auto pb-2 pt-2 no-scrollbar pointer-events-auto">
             {['Botanisk hage', 'Naturreservat', 'Nasjonalpark', 'Blomstereng'].map((tag) => (
             <button
@@ -275,7 +249,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
           </div>
         </div>
       </header>
-
       {/* Bottom floating panel for selected place */}
       {selectedPlace && (
         <div className="absolute bottom-8 left-8 right-8 z-10 animate-in fade-in slide-in-from-bottom-4 duration-300 pointer-events-none">
@@ -292,13 +265,11 @@ function MapContent({ onBack }: { onBack: () => void }) {
                 <Icons.X className="w-5 h-5 text-muted-foreground" />
               </button>
             </div>
-            
             {selectedPlace.editorialSummary && (
               <p className="text-sm text-foreground/80 mb-6 leading-relaxed">
                 {selectedPlace.editorialSummary}
               </p>
             )}
-
             <div className="flex gap-3">
               <button className="flex-grow bg-primary text-white font-bold py-4 rounded-2xl active:scale-95 transition-transform shadow-lg shadow-primary/20">
                 Veibeskrivelse
@@ -310,7 +281,6 @@ function MapContent({ onBack }: { onBack: () => void }) {
     </>
   );
 }
-
 export default function Map({ onBack, onNavigate }: MapProps) {
   if (!hasValidKey) {
     return (
@@ -327,7 +297,6 @@ export default function Map({ onBack, onNavigate }: MapProps) {
       </div>
     );
   }
-
   return (
     <div className="h-screen w-full relative bg-background">
       <APIProvider apiKey={API_KEY} version="weekly">
