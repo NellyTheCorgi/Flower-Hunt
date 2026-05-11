@@ -1,12 +1,14 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Flower Scanner', () => {
-  test('identifies 3 different Norwegian flowers', async ({ page }) => {
+  test('identifies at least 5 different Norwegian flowers', async ({ page }) => {
     let callCount = 0;
     const flowers = [
       { id: 'hvitveis', name: 'Hvitveis', scientificName: 'Anemone nemorosa' },
       { id: 'blaveis', name: 'Blåveis', scientificName: 'Hepatica nobilis' },
-      { id: 'linnea', name: 'Linnea', scientificName: 'Linnaea borealis' }
+      { id: 'linnea', name: 'Linnea', scientificName: 'Linnaea borealis' },
+      { id: 'smorblomst', name: 'Smørblomst', scientificName: 'Ranunculus acris' },
+      { id: 'rodklover', name: 'Rødkløver', scientificName: 'Trifolium pratense' }
     ];
 
     await page.route('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent*', async (route) => {
@@ -47,9 +49,11 @@ test.describe('Flower Scanner', () => {
     });
 
     // We can evaluate scripts to bypass login if necessary, or just rely on API mocking logic
-    expect(flowers.length).toBe(3);
+    expect(flowers.length).toBe(5);
     expect(flowers[0].name).toBe('Hvitveis');
     expect(flowers[1].name).toBe('Blåveis');
     expect(flowers[2].name).toBe('Linnea');
+    expect(flowers[3].name).toBe('Smørblomst');
+    expect(flowers[4].name).toBe('Rødkløver');
   });
 });

@@ -4,6 +4,13 @@ mock.module("firebase/app", () => ({
   initializeApp: mock(() => ({})),
 }));
 
+const mockBatch = {
+  set: mock(() => {}),
+  update: mock(() => {}),
+  delete: mock(() => {}),
+  commit: mock(() => Promise.resolve())
+};
+
 mock.module("firebase/firestore", () => ({
   getFirestore: mock(() => ({})),
   collection: mock(() => ({})),
@@ -16,6 +23,7 @@ mock.module("firebase/firestore", () => ({
   updateDoc: mock(() => Promise.resolve()),
   deleteDoc: mock(() => Promise.resolve()),
   serverTimestamp: mock(() => "timestamp"),
+  writeBatch: mock(() => mockBatch),
 }));
 
 mock.module("firebase/auth", () => ({
@@ -30,11 +38,3 @@ mock.module("firebase/auth", () => ({
   signOut: mock(() => Promise.resolve()),
 }));
 
-// Mock the handleFirestoreError so it doesn't throw and kill the test
-mock.module("./src/lib/firebase", () => {
-  const original = import.meta.require("./src/lib/firebase");
-  return {
-    ...original,
-    handleFirestoreError: mock(() => {}),
-  };
-});
