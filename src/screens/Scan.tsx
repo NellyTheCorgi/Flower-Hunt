@@ -1,10 +1,8 @@
-import { useState, useRef, ChangeEvent, useEffect, useCallback } from 'react';
+import { useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
 import Webcam from 'react-webcam';
-import { Icons, ScreenType, FLOWER_IMAGES } from '../constants';
-import { FlowerSpecies } from '../types';
-import { WikipediaInfo } from '../services/wikipediaService';
+import { Icons, ScreenType } from '../constants';
 import { useFirebase } from '../context/FirebaseContext';
 import { getTitleForLevel, getIconNameForLevel, MILESTONES } from '../lib/levels';
 import { useFlowerScanner } from '../hooks/useFlowerScanner';
@@ -16,13 +14,24 @@ interface ScanProps {
 
 export default function Scan({ onBack, onNavigate }: ScanProps) {
   const { user, refreshProfile } = useFirebase();
-  const { isScanning, saving, error, setError, scanImage, collectFlower } = useFlowerScanner();
-
-  const [isFound, setIsFound] = useState(false);
-  const [identifiedSpecies, setIdentifiedSpecies] = useState<FlowerSpecies | null>(null);
-  const [wikiInfo, setWikiInfo] = useState<WikipediaInfo | null>(null);
-  const [previewImage, setPreviewImage] = useState<string>(FLOWER_IMAGES.sunflowerView);
-  const [leveledUpTo, setLeveledUpTo] = useState<number | null>(null);
+  const {
+    isScanning,
+    saving,
+    error,
+    scanImage,
+    isFound,
+    setIsFound,
+    identifiedSpecies,
+    setIdentifiedSpecies,
+    wikiInfo,
+    setWikiInfo,
+    previewImage,
+    setPreviewImage,
+    leveledUpTo,
+    setLeveledUpTo,
+    handleCapture,
+    handleCollect
+  } = useFlowerScanner();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const webcamRef = useRef<Webcam>(null);
@@ -53,100 +62,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
 
     const intervalId = setInterval(pollCamera, 4000);
     return () => clearInterval(intervalId);
-  }, [isScanning, isFound, scanImage, error]);
-
-
-  const processImage = async (dataUrl: string) => {
-    setIsFound(false);
-    setIdentifiedSpecies(null);
-    setWikiInfo(null);
-    setPreviewImage(dataUrl);
-
-    const result = await scanImage(dataUrl);
-    
-    if (result) {
-      setIdentifiedSpecies(result.species);
-      setWikiInfo(result.wikiInfo);
-      setIsFound(true);
-    } else if (error) {
-       alert(error);
-    }
-  };
-
-  const handleCapture = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-
-    reader.onerror = () => {
-      alert('Klarte ikke å lese bildefilen.');
-    };
-
-    reader.onload = async (event) => {
-      const dataUrl = event.target?.result as string;
-      
-      const img = new Image();
-      img.onerror = () => {
-        alert('Klarte ikke å behandle bildet.');
-      };
-
-      img.onload = async () => {
-        try {
-          const canvas = document.createElement('canvas');
-          const MAX_WIDTH = 1024;
-          const MAX_HEIGHT = 1024;
-          let width = img.width;
-          let height = img.height;
-
-          if (width > height) {
-            if (width > MAX_WIDTH) {
-              height *= MAX_WIDTH / width;
-              width = MAX_WIDTH;
-            }
-          } else {
-            if (height > MAX_HEIGHT) {
-              width *= MAX_HEIGHT / height;
-              height = MAX_HEIGHT;
-            }
-          }
-
-          canvas.width = width;
-          canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (!ctx) throw new Error('Could not get canvas context');
-          
-          ctx.drawImage(img, 0, 0, width, height);
-
-          const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-          await processImage(compressedBase64);
-        } catch (err) {
-          console.error('Identification error:', err);
-          alert('Det oppsto en feil under bildeanalysen. Vennligst prøv igjen.');
-        }
-      };
-      img.src = dataUrl;
-    };
-    reader.readAsDataURL(file);
-  };
-
-  const handleCollect = async () => {
-    if (!user || !identifiedSpecies) return;
-
-    const newLevelAchieved = await collectFlower(
-      user.uid,
-      identifiedSpecies,
-      previewImage,
-      wikiInfo,
-      refreshProfile
-    );
-
-    if (newLevelAchieved) {
-      setLeveledUpTo(newLevelAchieved);
-    } else if (newLevelAchieved !== null || !error) { // if null returned and no error, means success but no level up
-      onNavigate('collection');
-    }
-  };
+  }, [isScanning, isFound, scanImage, error, setPreviewImage, setIdentifiedSpecies, setWikiInfo, setIsFound]);
 
   return (
     <div className="h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
@@ -278,7 +194,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
 
               <div className="mt-8 flex gap-3 flex-shrink-0">
                 <button 
-                  onClick={handleCollect}
+                  onClick={() => user ? handleCollect(user.uid, refreshProfile, onNavigate) : null}
                   disabled={saving}
                   className="flex-grow bg-primary text-white font-bold py-4 rounded-2xl shadow-lg shadow-primary/20 active:scale-95 transition-transform disabled:opacity-50"
                 >
