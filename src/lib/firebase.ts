@@ -1,5 +1,15 @@
 import { initializeApp } from 'firebase/app';
-import { getAuth, GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
+import {
+  getAuth,
+  GoogleAuthProvider,
+  FacebookAuthProvider,
+  OAuthProvider,
+  signInWithRedirect,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  sendEmailVerification,
+  signOut
+} from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 
 const firebaseConfig = {
@@ -15,6 +25,8 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const googleProvider = new GoogleAuthProvider();
+export const facebookProvider = new FacebookAuthProvider();
+export const appleProvider = new OAuthProvider('apple.com');
 
 export enum OperationType {
   CREATE = 'create',
@@ -65,10 +77,68 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
 
 export const loginWithGoogle = async () => {
   try {
-    const result = await signInWithPopup(auth, googleProvider);
-    return result.user;
+    await signInWithRedirect(auth, googleProvider);
   } catch (error) {
     console.error('Login error:', error);
+    throw error;
+  }
+};
+
+export const loginWithFacebook = async () => {
+  try {
+    await signInWithRedirect(auth, facebookProvider);
+  } catch (error) {
+    console.error('Facebook login error:', error);
+    throw error;
+  }
+};
+
+export const loginWithApple = async () => {
+  try {
+    await signInWithRedirect(auth, appleProvider);
+  } catch (error) {
+    console.error('Apple login error:', error);
+    throw error;
+  }
+};
+
+export const signUpWithEmail = async (email: string, pass: string) => {
+  try {
+    const result = await createUserWithEmailAndPassword(auth, email, pass);
+    await sendEmailVerification(result.user);
+    return result.user;
+  } catch (error) {
+    console.error('Sign up error:', error);
+    throw error;
+  }
+};
+
+export const loginWithEmail = async (email: string, pass: string) => {
+  try {
+    const result = await signInWithEmailAndPassword(auth, email, pass);
+    return result.user;
+  } catch (error) {
+    console.error('Email login error:', error);
+    throw error;
+  }
+};
+
+export const resendVerificationEmail = async () => {
+  try {
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+    }
+  } catch (error) {
+    console.error('Resend verification error:', error);
+    throw error;
+  }
+};
+
+export const logout = async () => {
+  try {
+    await signOut(auth);
+  } catch (error) {
+    console.error('Logout error:', error);
     throw error;
   }
 };

@@ -35,7 +35,8 @@ import {
   Globe,
   Crown,
   Telescope,
-  Medal
+  Medal,
+  Mail
 } from 'lucide-react';
 
 export const Icons = {
@@ -75,7 +76,8 @@ export const Icons = {
   Globe,
   Crown,
   Telescope,
-  Medal
+  Medal,
+  Mail
 };
 
 export type ScreenType = 'login' | 'home' | 'map' | 'scan' | 'collection' | 'ranks' | 'profile' | 'social';

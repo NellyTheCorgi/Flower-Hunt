@@ -68,7 +68,13 @@ export const FirebaseProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       if (user) {
-        await fetchProfile(user.uid);
+        // Only fetch profile if email is verified (required by firestore.rules)
+        // or if they used an OAuth provider (usually auto-verified or doesn't matter for the provider, though Firebase treats them as verified)
+        if (user.emailVerified) {
+          await fetchProfile(user.uid);
+        } else {
+          setProfile(null);
+        }
       } else {
         setProfile(null);
       }
