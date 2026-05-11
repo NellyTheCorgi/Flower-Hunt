@@ -9,7 +9,8 @@ import {
   setDoc,
   updateDoc,
   deleteDoc,
-  serverTimestamp
+  serverTimestamp,
+  writeBatch
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { identifyFlower as identifyFlowerAI } from '../services/geminiService';
@@ -139,15 +140,17 @@ export function useFlowerScanner() {
 
       const isNewDiscovery = querySnap.empty;
 
+      const batch = writeBatch(db);
+
       if (!querySnap.empty) {
         for (const oldDoc of querySnap.docs) {
           if (oldDoc.id !== collId) {
-            await deleteDoc(doc(db, 'collections', oldDoc.id));
+            batch.delete(doc(db, 'collections', oldDoc.id));
           }
         }
       }
 
-      await setDoc(collDocRef, docData, { merge: true });
+      batch.set(collDocRef, docData, { merge: true });
 
       let newLevelAchieved: number | null = null;
       if (isNewDiscovery) {
@@ -168,7 +171,7 @@ export function useFlowerScanner() {
             newLevelAchieved = newLevel;
           }
 
-          await updateDoc(userRef, {
+          batch.update(userRef, {
             'stats.totalFound': currentTotalFound + 1,
             'stats.xp': newXP,
             'stats.level': newLevel,
@@ -177,6 +180,8 @@ export function useFlowerScanner() {
           });
         }
       }
+
+      await batch.commit();
 
       await refreshProfile();
       return newLevelAchieved;
