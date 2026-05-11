@@ -13,7 +13,7 @@ import {
 } from 'firebase/firestore';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { identifyFlower as identifyFlowerAI } from '../services/geminiService';
-import { fetchFlowerInfo } from '../services/wikipediaService';
+import { fetchFlowerInfo, WikipediaInfo } from '../services/wikipediaService';
 import { FlowerSpecies, IdentifiedFlower, CollectedFlower, UserProfile } from '../types';
 import { NORWEGIAN_FLOWERS } from '../data/flowers';
 import { calculateLevel, getEarnedTrophies } from '../lib/levels';
@@ -25,7 +25,7 @@ export function useFlowerScanner() {
 
   const scanImage = async (compressedBase64: string): Promise<{
     species: FlowerSpecies;
-    wikiInfo: any;
+    wikiInfo: WikipediaInfo | null;
   } | null> => {
     setIsScanning(true);
     setError(null);
@@ -79,7 +79,7 @@ export function useFlowerScanner() {
     userId: string,
     identifiedSpecies: FlowerSpecies,
     previewImage: string,
-    wikiInfo: any,
+    wikiInfo: WikipediaInfo | null,
     refreshProfile: () => Promise<void>
   ): Promise<number | null> => {
     setSaving(true);
