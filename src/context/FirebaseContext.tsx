@@ -1,7 +1,8 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
-import { auth, db, OperationType, handleFirestoreError } from '../lib/firebase';
+import { auth, db, OperationType } from '../lib/firebase';
+import { handleFirestoreError } from '../lib/firebase-errors';
 
 interface UserProfile {
   uid: string;

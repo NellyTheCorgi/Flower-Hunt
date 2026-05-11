@@ -1,5 +1,6 @@
 import { describe, test, expect, spyOn, beforeEach, afterEach } from 'bun:test';
-import { handleFirestoreError, OperationType, auth } from './firebase';
+import { OperationType, auth } from './firebase';
+import { handleFirestoreError } from './firebase-errors';
 
 describe('handleFirestoreError', () => {
   let consoleErrorSpy: any;

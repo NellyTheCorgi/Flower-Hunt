@@ -1,8 +1,8 @@
-import { expect, test, mock, describe, beforeEach, afterEach } from "bun:test";
+import { expect, test, mock, spyOn, describe, beforeEach, afterEach } from "bun:test";
 import "../../test-setup.ts"; // Load this before anything else!
 
 import { useFlowerScanner } from "./useFlowerScanner";
-import { getDoc, getDocs, updateDoc, setDoc } from "firebase/firestore";
+import { getDoc, getDocs, updateDoc, setDoc, writeBatch } from "firebase/firestore";
 
 mock.module("react", () => ({
   useState: (init: any) => {
@@ -32,6 +32,11 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
     (getDocs as ReturnType<typeof mock>).mockClear();
     (updateDoc as ReturnType<typeof mock>).mockClear();
     (setDoc as ReturnType<typeof mock>).mockClear();
+    const batch = writeBatch({} as any);
+    (batch.update as ReturnType<typeof mock>).mockClear();
+    (batch.set as ReturnType<typeof mock>).mockClear();
+    (batch.delete as ReturnType<typeof mock>).mockClear();
+    (batch.commit as ReturnType<typeof mock>).mockClear();
   });
 
   afterEach(() => {
@@ -67,8 +72,9 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
     expect(result).toBe(2);
 
     // Verify user profile update
-    expect(updateDoc).toHaveBeenCalled();
-    const updateCallArgs = (updateDoc as any).mock.calls[0];
+    const batch = writeBatch({} as any);
+    expect(batch.update).toHaveBeenCalled();
+    const updateCallArgs = (batch.update as any).mock.calls[0];
     expect(updateCallArgs[1]).toEqual({
       'stats.totalFound': 4,
       'stats.xp': 100,
@@ -99,7 +105,8 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
 
       // Should not check user doc or update stats
       expect(getDoc).not.toHaveBeenCalled();
-      expect(updateDoc).not.toHaveBeenCalled();
+      const batch = writeBatch({} as any);
+      expect(batch.update).not.toHaveBeenCalled();
   });
 
   test("new discovery updates user stats but returns null if no new level reached", async () => {
@@ -131,8 +138,9 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
     expect(result).toBeNull();
 
     // Verify user profile update was still called
-    expect(updateDoc).toHaveBeenCalled();
-    const updateCallArgs = (updateDoc as any).mock.calls[0];
+    const batch = writeBatch({} as any);
+    expect(batch.update).toHaveBeenCalled();
+    const updateCallArgs = (batch.update as any).mock.calls[0];
     expect(updateCallArgs[1]).toEqual({
       'stats.totalFound': 2,
       'stats.xp': 35,
@@ -168,8 +176,9 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
 
     expect(result).toBe(5);
 
-    expect(updateDoc).toHaveBeenCalled();
-    const updateCallArgs = (updateDoc as any).mock.calls[0];
+    const batch = writeBatch({} as any);
+    expect(batch.update).toHaveBeenCalled();
+    const updateCallArgs = (batch.update as any).mock.calls[0];
     expect(updateCallArgs[1]).toEqual({
       'stats.totalFound': 26,
       'stats.xp': 1005,
@@ -204,11 +213,16 @@ describe("useFlowerScanner - collectFlower level up logic", () => {
     expect(result).toBeNull();
 
     // Verify user profile update was NOT called
-    expect(updateDoc).not.toHaveBeenCalled();
+    const batch = writeBatch({} as any);
+    expect(batch.update).not.toHaveBeenCalled();
   });
 
   test("returns null and handles error when an exception is thrown", async () => {
     const { collectFlower } = useFlowerScanner();
+
+    // We just mock it locally so it won't crash this specific test.
+    const firebaseErrors = await import("../lib/firebase-errors");
+    const spy = spyOn(firebaseErrors, "handleFirestoreError").mockImplementation(() => {});
 
     // Force an error when getDocs is called
     (getDocs as ReturnType<typeof mock>).mockRejectedValueOnce(new Error("Network error"));

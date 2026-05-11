@@ -12,7 +12,8 @@ import {
   serverTimestamp,
   writeBatch
 } from 'firebase/firestore';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
+import { db, OperationType } from '../lib/firebase';
+import { handleFirestoreError } from '../lib/firebase-errors';
 import { identifyFlower as identifyFlowerAI } from '../services/geminiService';
 import { fetchFlowerInfo } from '../services/wikipediaService';
 import { FlowerSpecies, IdentifiedFlower, CollectedFlower, UserProfile } from '../types';

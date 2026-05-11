@@ -16,6 +16,3 @@ mock.module("firebase/auth", () => ({
   signOut: async () => {}
 }));
 
-mock.module("firebase/firestore", () => ({
-  getFirestore: () => ({})
-}));
