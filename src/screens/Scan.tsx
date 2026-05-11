@@ -7,7 +7,7 @@ import { identifyFlower } from '../services/geminiService';
 import { fetchFlowerInfo, WikipediaInfo } from '../services/wikipediaService';
 import { db, handleFirestoreError, OperationType } from '../lib/firebase';
 import { calculateLevel, getEarnedTrophies, getTitleForLevel, getIconNameForLevel, MILESTONES } from '../lib/levels';
-import { collection, serverTimestamp, doc, updateDoc, increment, getDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { collection, serverTimestamp, doc, updateDoc, getDoc, query, where, getDocs, writeBatch } from 'firebase/firestore';
 import { useFirebase } from '../context/FirebaseContext';
 
 interface ScanProps {
@@ -211,17 +211,18 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
       }
 
       const isNewDiscovery = querySnap.empty;
+      const batch = writeBatch(db);
 
       // Clean up ANY document that matches this species name but has a different ID
       if (!querySnap.empty) {
         for (const oldDoc of querySnap.docs) {
           if (oldDoc.id !== collId) {
-            await deleteDoc(doc(db, 'collections', oldDoc.id));
+            batch.delete(doc(db, 'collections', oldDoc.id));
           }
         }
       }
 
-      await setDoc(collDocRef, docData, { merge: true });
+      batch.set(collDocRef, docData, { merge: true });
 
       let newLevelAchieved: number | null = null;
       if (isNewDiscovery) {
@@ -243,7 +244,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
               newLevelAchieved = newLevel;
             }
             
-            await updateDoc(userRef, {
+            batch.update(userRef, {
               'stats.totalFound': currentTotalFound + 1,
               'stats.xp': newXP,
               'stats.level': newLevel,
@@ -256,6 +257,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
         }
       }
 
+      await batch.commit();
       await refreshProfile();
       
       if (newLevelAchieved) {
