@@ -1,14 +1,13 @@
-import { useState, useRef, ChangeEvent } from 'react';
+import { useState, useRef, ChangeEvent, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import Markdown from 'react-markdown';
+import Webcam from 'react-webcam';
 import { Icons, ScreenType, FLOWER_IMAGES } from '../constants';
-import { NORWEGIAN_FLOWERS, FlowerSpecies } from '../data/flowers';
-import { identifyFlower } from '../services/geminiService';
-import { fetchFlowerInfo, WikipediaInfo } from '../services/wikipediaService';
-import { db, handleFirestoreError, OperationType } from '../lib/firebase';
-import { calculateLevel, getEarnedTrophies, getTitleForLevel, getIconNameForLevel, MILESTONES } from '../lib/levels';
-import { collection, serverTimestamp, doc, updateDoc, increment, getDoc, setDoc, query, where, getDocs, deleteDoc } from 'firebase/firestore';
+import { FlowerSpecies } from '../types';
+import { WikipediaInfo } from '../services/wikipediaService';
 import { useFirebase } from '../context/FirebaseContext';
+import { getTitleForLevel, getIconNameForLevel, MILESTONES } from '../lib/levels';
+import { useFlowerScanner } from '../hooks/useFlowerScanner';
 
 interface ScanProps {
   onBack: () => void;
@@ -17,37 +16,70 @@ interface ScanProps {
 
 export default function Scan({ onBack, onNavigate }: ScanProps) {
   const { user, refreshProfile } = useFirebase();
-  const [isScanning, setIsScanning] = useState(false);
+  const { isScanning, saving, error, setError, scanImage, collectFlower } = useFlowerScanner();
+
   const [isFound, setIsFound] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [identifiedSpecies, setIdentifiedSpecies] = useState<FlowerSpecies | null>(null);
   const [wikiInfo, setWikiInfo] = useState<WikipediaInfo | null>(null);
   const [previewImage, setPreviewImage] = useState<string>(FLOWER_IMAGES.sunflowerView);
   const [leveledUpTo, setLeveledUpTo] = useState<number | null>(null);
+
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const webcamRef = useRef<Webcam>(null);
+
+  // Automatic scanning polling
+  useEffect(() => {
+    // fixed
+
+    const pollCamera = async () => {
+      // Don't poll if we're already scanning, or we already found a flower
+      if (isScanning || isFound || !webcamRef.current) return;
+
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (!imageSrc) return;
+
+      try {
+        const result = await scanImage(imageSrc);
+        if (result && !error) {
+          setPreviewImage(imageSrc);
+          setIdentifiedSpecies(result.species);
+          setWikiInfo(result.wikiInfo);
+          setIsFound(true);
+        }
+      } catch (e) {
+        // Quietly ignore errors during polling so it just keeps trying
+      }
+    };
+
+    const intervalId = setInterval(pollCamera, 4000);
+    return () => clearInterval(intervalId);
+  }, [isScanning, isFound, scanImage, error]);
+
+
+  const processImage = async (dataUrl: string) => {
+    setIsFound(false);
+    setIdentifiedSpecies(null);
+    setWikiInfo(null);
+    setPreviewImage(dataUrl);
+
+    const result = await scanImage(dataUrl);
+    
+    if (result) {
+      setIdentifiedSpecies(result.species);
+      setWikiInfo(result.wikiInfo);
+      setIsFound(true);
+    } else if (error) {
+       alert(error);
+    }
+  };
 
   const handleCapture = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsScanning(true);
-    setIsFound(false);
-    setIdentifiedSpecies(null);
-    setWikiInfo(null);
-
     const reader = new FileReader();
-    
-    // Add timeout to scanning just in case
-    const scanTimeout = setTimeout(() => {
-      if (isScanning) {
-        setIsScanning(false);
-        alert('Analysen tok for lang tid. Vennligst prøv et annet bildet eller sjekk internettforbindelsen din.');
-      }
-    }, 30000); // 30 seconds
 
     reader.onerror = () => {
-      clearTimeout(scanTimeout);
-      setIsScanning(false);
       alert('Klarte ikke å lese bildefilen.');
     };
 
@@ -56,8 +88,6 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
       
       const img = new Image();
       img.onerror = () => {
-        clearTimeout(scanTimeout);
-        setIsScanning(false);
         alert('Klarte ikke å behandle bildet.');
       };
 
@@ -89,56 +119,10 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
           ctx.drawImage(img, 0, 0, width, height);
 
           const compressedBase64 = canvas.toDataURL('image/jpeg', 0.8);
-          setPreviewImage(compressedBase64);
-          
-          const result = await identifyFlower(compressedBase64, 'image/jpeg');
-          
-          clearTimeout(scanTimeout);
-          
-          if (!result) throw new Error('Ingen resultat fra AI');
-          if (result.error) {
-             alert(`Beklager, vi klarte ikke å analysere bildet: ${result.error}`);
-             setIsScanning(false);
-             return;
-          }
-
-          let species: FlowerSpecies;
-          const normalizedScientificName = (result.scientificName || 'unknown')
-            .toLowerCase()
-            .trim()
-            .replace(/[^a-z0-9]/g, '-');
-
-          // Attempt to find match in database even if isMatch is false, based on scientific name
-          const dbMatch = result.id ? 
-            NORWEGIAN_FLOWERS.find(f => f.id === result.id) : 
-            NORWEGIAN_FLOWERS.find(f => f.scientificName.toLowerCase() === (result.scientificName || '').toLowerCase());
-
-          if (dbMatch) {
-            species = { ...dbMatch, formattedText: result.formattedText } as any;
-          } else {
-            species = {
-              id: result.id || `species-${normalizedScientificName}`,
-              name: result.name || 'Ukjent',
-              scientificName: result.scientificName || 'Unknown',
-              rarity: (result.rarity as any) || 'unknown',
-              description: result.description || '',
-              habitat: result.habitat || '',
-              icon: 'Flower',
-              family: result.family,
-              formattedText: result.formattedText
-            } as any;
-          }
-
-          setIdentifiedSpecies(species);
-          const info = await fetchFlowerInfo(species.scientificName || species.name);
-          setWikiInfo(info);
-          setIsFound(true);
+          await processImage(compressedBase64);
         } catch (err) {
           console.error('Identification error:', err);
           alert('Det oppsto en feil under bildeanalysen. Vennligst prøv igjen.');
-        } finally {
-          setIsScanning(false);
-          clearTimeout(scanTimeout);
         }
       };
       img.src = dataUrl;
@@ -148,153 +132,62 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
 
   const handleCollect = async () => {
     if (!user || !identifiedSpecies) return;
-    setSaving(true);
 
-    try {
-      // 1. Query for any existing entries of this species (by ID or Name) for this user
-      const collectionsRef = collection(db, 'collections');
-      
-      // Specifically query by speciesName since that's what shows in the UI and is user-expected to be unique
-      const q = query(
-        collectionsRef, 
-        where('userId', '==', user.uid),
-        where('speciesName', '==', identifiedSpecies.name)
-      );
-      
-      const querySnap = await getDocs(q);
-      
-      // The deterministic composite ID: userId_speciesId
-      const collId = `${user.uid}_${identifiedSpecies.id}`;
-      const collDocRef = doc(db, 'collections', collId);
-      
-      let location = null;
-      try {
-        if ('geolocation' in navigator) {
-          console.log('Starter GPS-henting...');
-          const position = await new Promise<GeolocationPosition>((resolve, reject) => {
-            navigator.geolocation.getCurrentPosition(resolve, reject, {
-              enableHighAccuracy: true,
-              timeout: 15000,
-              maximumAge: 0
-            });
-          });
-          location = {
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          };
-          console.log('GPS lokasjon hentet suksessfullt:', location);
-        }
-      } catch (err) {
-        console.warn('Kunne ikke hente GPS-lokasjon:', err);
-      }
-      
-      const docData: any = {
-        userId: user.uid,
-        speciesId: identifiedSpecies.id,
-        speciesName: identifiedSpecies.name,
-        imageUrl: previewImage,
-        collectedAt: serverTimestamp(),
-        scientificName: identifiedSpecies.scientificName || 'Ukjent',
-        family: identifiedSpecies.family || '',
-        habitat: identifiedSpecies.habitat || 'Ukjent',
-        rarity: identifiedSpecies.rarity || 'common',
-        description: wikiInfo?.extract || identifiedSpecies.description || "Vakkert bevart i din digitale samling.",
-        formattedText: (identifiedSpecies as any).formattedText || '',
-      };
+    const newLevelAchieved = await collectFlower(
+      user.uid,
+      identifiedSpecies,
+      previewImage,
+      wikiInfo,
+      refreshProfile
+    );
 
-      if (wikiInfo?.sourceUrl) {
-        docData.wikiUrl = wikiInfo.sourceUrl;
-      }
-
-      if (location) {
-        docData.location = location;
-      }
-
-      const isNewDiscovery = querySnap.empty;
-
-      // Clean up ANY document that matches this species name but has a different ID
-      if (!querySnap.empty) {
-        for (const oldDoc of querySnap.docs) {
-          if (oldDoc.id !== collId) {
-            await deleteDoc(doc(db, 'collections', oldDoc.id));
-          }
-        }
-      }
-
-      await setDoc(collDocRef, docData, { merge: true });
-
-      let newLevelAchieved: number | null = null;
-      if (isNewDiscovery) {
-        try {
-          const userRef = doc(db, 'users', user.uid);
-          const userSnap = await getDoc(userRef);
-          
-          if (userSnap.exists()) {
-            const userData = userSnap.data();
-            const currentXP = userData.stats?.xp || 0;
-            const currentTotalFound = userData.stats?.totalFound || 0;
-            const currentLevel = userData.stats?.level || 1;
-            
-            const newXP = currentXP + 25;
-            const newLevel = calculateLevel(newXP);
-            const trophies = getEarnedTrophies(newLevel);
-            
-            if (newLevel > currentLevel) {
-              newLevelAchieved = newLevel;
-            }
-            
-            await updateDoc(userRef, {
-              'stats.totalFound': currentTotalFound + 1,
-              'stats.xp': newXP,
-              'stats.level': newLevel,
-              unlocked_trophies: trophies,
-              updatedAt: serverTimestamp()
-            });
-          }
-        } catch (userError) {
-          handleFirestoreError(userError, OperationType.UPDATE, `users/${user.uid}`);
-        }
-      }
-
-      await refreshProfile();
-      
-      if (newLevelAchieved) {
-        setLeveledUpTo(newLevelAchieved);
-      } else {
-        onNavigate('collection');
-      }
-    } catch (error) {
-      if (error instanceof Error && error.message.includes('users/')) {
-        throw error;
-      }
-      handleFirestoreError(error, OperationType.WRITE, 'collections');
-    } finally {
-      setSaving(false);
+    if (newLevelAchieved) {
+      setLeveledUpTo(newLevelAchieved);
+    } else if (newLevelAchieved !== null || !error) { // if null returned and no error, means success but no level up
+      onNavigate('collection');
     }
   };
 
   return (
-    <div className="h-screen bg-background flex flex-col items-center justify-center p-6 relative overflow-hidden">
-      {/* Background decoration */}
-      <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
-        <div className="absolute top-1/4 -left-20 w-64 h-64 bg-primary rounded-full blur-3xl" />
-        <div className="absolute bottom-1/4 -right-20 w-64 h-64 bg-secondary rounded-full blur-3xl" />
-      </div>
+    <div className="h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
+      {/* Live Camera Feed Background */}
+      {!isFound && (
+        <div className="absolute inset-0 z-0 bg-black">
+          <Webcam
+            audio={false}
+            ref={webcamRef}
+            screenshotFormat="image/jpeg"
+            screenshotQuality={0.8}
+            videoConstraints={{ facingMode: "environment" }}
+            className="w-full h-full object-cover opacity-80"
+          />
+        </div>
+      )}
+
+      {/* Background decoration if found */}
+      {isFound && (
+        <div className="absolute top-0 left-0 w-full h-full opacity-10 pointer-events-none">
+          <div className="absolute top-1/4 -left-20 w-64 h-64 bg-primary rounded-full blur-3xl" />
+          <div className="absolute bottom-1/4 -right-20 w-64 h-64 bg-secondary rounded-full blur-3xl" />
+        </div>
+      )}
 
       <button 
         onClick={onBack}
-        className="absolute top-8 left-8 w-12 h-12 rounded-2xl bg-white shadow-sm border border-outline-variant/30 flex items-center justify-center text-primary active:scale-95 transition-transform"
+        className="absolute top-8 left-8 w-12 h-12 rounded-2xl bg-white/80 backdrop-blur shadow-sm border border-outline-variant/30 flex items-center justify-center text-primary active:scale-95 transition-transform z-20"
       >
         <Icons.ChevronRight className="w-6 h-6 rotate-180" />
       </button>
 
-      <div className="text-center space-y-12 relative z-10 w-full max-w-sm px-4">
-        <div className="space-y-4">
-          <h2 className="text-4xl font-bold font-display text-primary tracking-tight">Feltkamera</h2>
-          <p className="text-muted-foreground text-base max-w-[280px] mx-auto leading-relaxed">
-            {isScanning ? 'Søker i norsk flora-database...' : 'Sikt på en ville-blomst og ta et bilde for å identifisere arten.'}
-          </p>
-        </div>
+      <div className="text-center space-y-12 relative z-10 w-full max-w-sm px-4 mt-auto mb-12">
+        {!isFound && (
+          <div className="space-y-4 bg-white/80 backdrop-blur-md p-6 rounded-3xl shadow-xl">
+            <h2 className="text-3xl font-bold font-display text-primary tracking-tight">Feltkamera</h2>
+            <p className="text-primary/80 text-sm max-w-[280px] mx-auto leading-relaxed">
+              {isScanning ? 'Søker i norsk flora-database...' : 'Pek kameraet mot en blomst for automatisk identifisering, eller ta et bilde manuelt.'}
+            </p>
+          </div>
+        )}
 
         <div className="relative flex flex-col items-center gap-8">
           <input 
@@ -306,38 +199,36 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
             onChange={handleCapture}
           />
           
-          <div className="relative">
-            <motion.button 
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              onClick={() => fileInputRef.current?.click()}
-              disabled={isScanning}
-              className={`w-full py-5 px-10 rounded-[2rem] flex items-center justify-center gap-4 shadow-2xl relative transition-all duration-300 font-bold text-lg min-w-[240px] ${
-                isScanning ? 'bg-secondary text-primary cursor-wait' : 'bg-primary text-white hover:bg-primary/90'
-              }`}
-            >
-              {isScanning ? (
-                <>
-                  <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                  <span>Identifiserer...</span>
-                </>
-              ) : (
-                <>
-                  <Icons.Camera className="w-6 h-6" />
-                  <span>Ta bilde av blomst</span>
-                </>
-              )}
-            </motion.button>
+          {!isFound && (
+            <div className="relative">
+              <motion.button
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isScanning}
+                className={`w-full py-5 px-10 rounded-[2rem] flex items-center justify-center gap-4 shadow-2xl relative transition-all duration-300 font-bold text-lg min-w-[240px] ${
+                  isScanning ? 'bg-secondary text-primary cursor-wait' : 'bg-primary text-white hover:bg-primary/90'
+                }`}
+              >
+                {isScanning ? (
+                  <>
+                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                    <span>Identifiserer...</span>
+                  </>
+                ) : (
+                  <>
+                    <Icons.Camera className="w-6 h-6" />
+                    <span>Ta bilde manuelt</span>
+                  </>
+                )}
+              </motion.button>
 
-            {/* Pulsing decoration */}
-            {!isScanning && (
-              <div className="absolute -inset-2 rounded-[2.5rem] bg-primary/10 animate-pulse -z-10" />
-            )}
-          </div>
-          
-          <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-primary/40">
-            Kun direkte bildeopptak
-          </p>
+              {/* Pulsing decoration */}
+              {!isScanning && (
+                <div className="absolute -inset-2 rounded-[2.5rem] bg-primary/10 animate-pulse -z-10" />
+              )}
+            </div>
+          )}
         </div>
       </div>
 
@@ -361,7 +252,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
                     </p>
                   )}
                 </div>
-                <div className="px-3 py-1 bg-secondary rounded-full">
+                <div className="px-3 py-1 bg-secondary rounded-full flex-shrink-0 ml-2">
                   <span className="text-[11px] font-bold text-primary uppercase tracking-wider">{identifiedSpecies.rarity}</span>
                 </div>
               </div>
@@ -372,7 +263,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
                     {identifiedSpecies.formattedText || `**Navn:** ${identifiedSpecies.name}  \n**Latinsk navn:** *${identifiedSpecies.scientificName || 'Ukjent'}*  \n**Familie:** ${(identifiedSpecies.family || 'UKJENT').toUpperCase()}  \n**Sjeldenhetsgrad:** ${(identifiedSpecies.rarity || 'common').toUpperCase()}  \n\n**HABITAT:**  \n${identifiedSpecies.habitat || 'Ukjent'}  \n\n**STATUS:**  \nI blomst  \n\n**FELTGUIDE:**  \n${wikiInfo?.extract || identifiedSpecies.description || 'Ingen informasjon tilgjengelig.'}`}
                   </Markdown>
                   
-                  {wikiInfo && (
+                  {wikiInfo?.sourceUrl && (
                     <a 
                       href={wikiInfo.sourceUrl} 
                       target="_blank" 
@@ -385,7 +276,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
                 </div>
               </div>
 
-              <div className="mt-8 flex gap-3">
+              <div className="mt-8 flex gap-3 flex-shrink-0">
                 <button 
                   onClick={handleCollect}
                   disabled={saving}
@@ -395,7 +286,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
                 </button>
                 <button 
                   onClick={() => setIsFound(false)}
-                  className="w-14 h-14 bg-secondary text-primary flex items-center justify-center rounded-2xl active:scale-95 transition-transform"
+                  className="w-14 h-14 bg-secondary text-primary flex items-center justify-center rounded-2xl active:scale-95 transition-transform flex-shrink-0"
                 >
                   <Icons.Zap className="w-6 h-6" />
                 </button>
