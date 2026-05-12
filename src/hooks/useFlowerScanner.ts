@@ -213,14 +213,18 @@ export function useFlowerScanner() {
     setWikiInfo(null);
     setPreviewImage(dataUrl);
 
-    const result = await scanImage(dataUrl);
+    try {
+      const result = await scanImage(dataUrl);
 
-    if (result) {
-      setIdentifiedSpecies(result.species);
-      setWikiInfo(result.wikiInfo);
-      setIsFound(true);
-    } else if (error) {
-       alert(error);
+      if (result) {
+        setIdentifiedSpecies(result.species);
+        setWikiInfo(result.wikiInfo);
+        setIsFound(true);
+      } else if (error) {
+         alert(error);
+      }
+    } finally {
+      setIsScanning(false);
     }
   };
 
