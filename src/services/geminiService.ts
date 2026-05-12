@@ -61,7 +61,7 @@ export async function generateFlowerText(speciesName: string): Promise<string | 
 Du MÅ følge systeminstruksen nøyaktig og fylle ut alle felt.`;
 
     const model = currentAi.getGenerativeModel({
-      model: "gemini-1.5-pro",
+      model: "gemini-2.5-flash",
       systemInstruction: SYSTEM_INSTRUCTION,
     });
 
@@ -92,7 +92,7 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
     const prompt = `Analyze this image and identify the flower. You must respond ONLY with a valid JSON object containing these keys: "navn" (the common Norwegian name of the flower), "vitenskapeligNavn" (the Latin scientific name), and "beskrivelse" (a short, fun 2-sentence description of the flower in Norwegian).`;
 
     const model = currentAi.getGenerativeModel({
-      model: "gemini-1.5-pro",
+      model: "gemini-2.5-flash",
       systemInstruction: SYSTEM_INSTRUCTION,
     });
 

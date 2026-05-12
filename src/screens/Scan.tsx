@@ -37,33 +37,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
   const uploadInputRef = useRef<HTMLInputElement>(null);
   const webcamRef = useRef<Webcam>(null);
 
-  // Automatic scanning polling
-  useEffect(() => {
-    // fixed
-
-    const pollCamera = async () => {
-      // Don't poll if we're already scanning, or we already found a flower
-      if (isScanning || isFound || !webcamRef.current) return;
-
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (!imageSrc) return;
-
-      try {
-        const result = await scanImage(imageSrc);
-        if (result && !error) {
-          setPreviewImage(imageSrc);
-          setIdentifiedSpecies(result.species);
-          setWikiInfo(result.wikiInfo);
-          setIsFound(true);
-        }
-      } catch (e) {
-        // Quietly ignore errors during polling so it just keeps trying
-      }
-    };
-
-    const intervalId = setInterval(pollCamera, 4000);
-    return () => clearInterval(intervalId);
-  }, [isScanning, isFound, scanImage, error, setPreviewImage, setIdentifiedSpecies, setWikiInfo, setIsFound]);
+  // Manual scanning handled via handleCapture and processImage
 
   return (
     <div className="h-screen bg-background flex flex-col items-center justify-center relative overflow-hidden">
