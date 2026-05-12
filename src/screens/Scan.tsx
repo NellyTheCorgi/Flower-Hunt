@@ -34,6 +34,7 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
   } = useFlowerScanner();
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const uploadInputRef = useRef<HTMLInputElement>(null);
   const webcamRef = useRef<Webcam>(null);
 
   // Automatic scanning polling
@@ -115,36 +116,58 @@ export default function Scan({ onBack, onNavigate }: ScanProps) {
             onChange={handleCapture}
           />
           
-          {!isFound && (
-            <div className="relative">
-              <motion.button
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
-                onClick={() => fileInputRef.current?.click()}
-                disabled={isScanning}
-                className={`w-full py-5 px-10 rounded-[2rem] flex items-center justify-center gap-4 shadow-2xl relative transition-all duration-300 font-bold text-lg min-w-[240px] ${
-                  isScanning ? 'bg-secondary text-primary cursor-wait' : 'bg-primary text-white hover:bg-primary/90'
-                }`}
-              >
-                {isScanning ? (
-                  <>
-                    <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-                    <span>Identifiserer...</span>
-                  </>
-                ) : (
-                  <>
-                    <Icons.Camera className="w-6 h-6" />
-                    <span>Ta bilde manuelt</span>
-                  </>
-                )}
-              </motion.button>
 
-              {/* Pulsing decoration */}
-              {!isScanning && (
-                <div className="absolute -inset-2 rounded-[2.5rem] bg-primary/10 animate-pulse -z-10" />
-              )}
+          {!isFound && (
+            <div className="flex flex-col gap-4 w-full">
+              <div className="relative">
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={isScanning}
+                  className={`w-full py-5 px-10 rounded-[2rem] flex items-center justify-center gap-4 shadow-2xl relative transition-all duration-300 font-bold text-lg min-w-[240px] ${
+                    isScanning ? 'bg-secondary text-primary cursor-wait' : 'bg-primary text-white hover:bg-primary/90'
+                  }`}
+                >
+                  {isScanning ? (
+                    <>
+                      <div className="w-5 h-5 border-2 border-primary border-t-transparent rounded-full animate-spin" />
+                      <span>Identifiserer...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Icons.Camera className="w-6 h-6" />
+                      <span>Ta bilde manuelt</span>
+                    </>
+                  )}
+                </motion.button>
+                {!isScanning && (
+                  <div className="absolute -inset-2 rounded-[2.5rem] bg-primary/10 animate-pulse -z-10" />
+                )}
+              </div>
+
+              <div className="relative">
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  ref={uploadInputRef}
+                  onChange={handleCapture}
+                />
+                <motion.button
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  onClick={() => uploadInputRef.current?.click()}
+                  disabled={isScanning}
+                  className="w-full py-4 px-10 rounded-[2rem] flex items-center justify-center gap-4 shadow-lg border-2 border-primary bg-white text-primary transition-all duration-300 font-bold text-md min-w-[240px]"
+                >
+                  <Icons.Camera className="w-5 h-5" />
+                  <span>Last opp bilde fra enhet</span>
+                </motion.button>
+              </div>
             </div>
           )}
+
         </div>
       </div>
 
