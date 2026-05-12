@@ -89,13 +89,7 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
 
     const list = NORWEGIAN_FLOWERS.map(f => `${f.id} (${f.name} - ${f.scientificName})`).join(', ');
 
-    const prompt = `Vennligst analyser dette bildet og identifiser planten.
-    Sjekk spesielt om den matcher en av disse fra vår database (ID: Navn - Vitenskapelig navn):
-    [${list}]
-    
-    Hvis planten er en match (eller en svært nær slektning på listen), sett 'isMatch' til true og oppgi 'id' fra listen.
-    Hvis planten ikke er på listen, identifiser den likevel så nøyaktig som mulig.
-    Du MÅ i tillegg fylle ut feltet 'formattedText' nøyaktig slik det er beskrevet i systeminstruksjonen.`;
+    const prompt = `Analyze this image and identify the flower. You must respond ONLY with a valid JSON object containing these keys: "navn" (the common Norwegian name of the flower), "vitenskapeligNavn" (the Latin scientific name), and "beskrivelse" (a short, fun 2-sentence description of the flower in Norwegian).`;
 
     const model = currentAi.getGenerativeModel({
       model: "gemini-1.5-flash",
@@ -119,18 +113,11 @@ export async function identifyFlower(base64Image: string, mimeType: string): Pro
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
-          required: ["name", "scientificName", "family", "description", "habitat", "rarity", "isMatch", "formattedText"],
+          required: ["navn", "vitenskapeligNavn", "beskrivelse"],
           properties: {
-            name: { type: Type.STRING, description: "Norsk navn på arten" },
-            scientificName: { type: Type.STRING, description: "Latinsk navn" },
-            family: { type: Type.STRING, description: "Botanisk familie (på norsk)" },
-            description: { type: Type.STRING, description: "Kort botanisk beskrivelse (ca 2 setninger)" },
-            habitat: { type: Type.STRING, description: "Hvor planten typisk vokser" },
-            rarity: { type: Type.STRING, enum: ['common', 'rare', 'ghost'], description: "Sjeldenhet" } as any,
-            isMatch: { type: Type.BOOLEAN, description: "Er dette en direkte match med listen?" },
-            id: { type: Type.STRING, description: "ID fra listen hvis match" },
-            error: { type: Type.STRING, description: "Feilmelding hvis ingen plante ble funnet" },
-            formattedText: { type: Type.STRING, description: "Den nøyaktig formaterte teksten beskrevet i systeminstruksjonen" }
+            navn: { type: Type.STRING, description: "The common Norwegian name of the flower" },
+            vitenskapeligNavn: { type: Type.STRING, description: "The Latin scientific name" },
+            beskrivelse: { type: Type.STRING, description: "A short, fun 2-sentence description of the flower in Norwegian" }
           }
         }
       }

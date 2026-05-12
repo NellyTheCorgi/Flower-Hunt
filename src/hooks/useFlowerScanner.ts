@@ -39,13 +39,18 @@ export function useFlowerScanner() {
     setIsScanning(true);
     setError(null);
     try {
-      const result: IdentifiedFlower | null = await identifyFlowerAI(compressedBase64, 'image/jpeg');
+      const result: any = await identifyFlowerAI(compressedBase64, 'image/jpeg');
 
       if (!result) throw new Error('Ingen resultat fra AI');
       if (result.error) {
         setError(`Beklager, vi klarte ikke å analysere bildet: ${result.error}`);
         return null;
       }
+      // Map new JSON schema back to IdentifiedFlower expected by the rest of the code
+      result.name = result.navn || result.name;
+      result.scientificName = result.vitenskapeligNavn || result.scientificName;
+      result.description = result.beskrivelse || result.description;
+      result.formattedText = `**Navn:** ${result.name}\n**Latinsk navn:** *${result.scientificName}*\n\n**BESKRIVELSE:**\n${result.description}`;
 
       let species: FlowerSpecies;
       const normalizedScientificName = (result.scientificName || 'unknown')
